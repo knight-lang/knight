@@ -1,0 +1,309 @@
+## Peeks at the first character in the stream.
+#
+# ARGUMENTS:
+#    stream: The stream to peek into.
+#
+# RETURNS:
+#    The first character of the string, or an empty string if the stream's empty.
+#
+# UPDATES:
+#    chr: the return value is also assigned to `chr`.
+; = peek BLOCK
+	: = chr GET stream 0 1
+
+## Discards the first character of the stream.
+#
+# ARGUMENTS:
+#    stream: The stream to delete the first character of.
+#
+# UPDATES:
+#    stream: removes the first character from it.
+; = advance BLOCK
+	: = stream SET stream 0 1 ""
+
+## Checks to see if the stream is at end of file.
+#
+# ARGUMENTS:
+#    stream: The stream to check.
+#
+# RETURNS:
+#    TRUE if the stream is empty, FALSE otherwise.
+; = iseof BLOCK
+	: ! LENGTH stream
+
+
+## Checks to see if the given character is a digit.
+#
+# ARGUMENTS:
+#    chr: The character to check
+#
+# RETURNS:
+#    TRUE when the character is a single ASCII digit, FALSE otherwise.
+; = isdigit BLOCK 
+	# while we technically could convert to an int and back again, this is more efficient.
+	: & (< '/' chr) (> ':' chr)
+
+## Checks to see if the given character is whitespace.
+#
+# ARGUMENTS:
+#    chr: The character to check
+#
+# RETURNS:
+#    TRUE when the character is whitespace and aught to be ignored, FALSE otherwise.
+#
+# NOTES:
+#    This checks for whitespace as per the knight spec, so it includes parens and `:`.
+; = iswhitespace BLOCK
+	: | (CALL iseol)
+	  | (? chr ' ')
+	  | (? chr '	')
+	  | (? chr '(')
+	  | (? chr ')')
+	  | (? chr '[')
+	  | (? chr ']')
+	  | (? chr '{')
+	  | (? chr '}')
+	    (? chr ':')
+
+## Checks to see if the given character is a lowercase character or an underscore.
+#
+# ARGUMENTS:
+#    chr: The character to check
+#
+# RETURNS:
+#    TRUE if the character is between `a` and `z`, or is equal to `_`, FALSE otherwise.
+; = islower BLOCK
+	:  | (& (< '`' chr) (> '{' chr)) (? '_' chr)
+
+## Checks to see if the given character is an uppercase character.
+#
+# ARGUMENTS:
+#    chr: The character to check
+#
+# RETURNS:
+#    TRUE if the character is between `A` and `Z`, FALSE otherwise.
+; = isupper BLOCK
+	:  & (< '@' chr) (> '[' chr)
+
+## Checks to see if the given character is an end of line character.
+#
+# ARGUMENTS:
+#    chr: The character to check
+#
+# PRIVATE FIELDS:
+#    _iseol_eol: The end of line character.
+#
+# RETURNS:
+#    True if the character is a literal newline.
+; = iseol BLOCK
+	: ? chr  _iseol_eol
+; = _iseol_eol '
+' # there is no escaping newlines...
+; & (? 2 LENGTH _iseol_eol) # remove `\r` in `\r\n` if present.
+    : = _iseol_eol GET _iseol_eol 1 1
+
+## Strips all leading whitespace and comments from the stream.
+#
+# ARGUMENTS:
+#    stream: The stream to strip.
+#
+# UPDATES:
+#    stream: The stream will have its leading whitespace and comments removed.
+#
+# CLOBBERS:
+#    chr
+; = strip_whitespace_and_comments BLOCK
+	; CALL peek
+	: IF (CALL iswhitespace)
+		; CALL advance # if it's a whitespace, go again.
+		: CALL strip_whitespace_and_comments
+	: & (? chr '#') # if it's a pound sign, just do the RHS
+		; CALL advance
+		; WHILE (! | (CALL iseof) (CALL iseol))
+			; CALL advance
+			: CALL peek
+		: CALL strip_whitespace_and_comments
+
+## Parses the next number.
+#
+# ARGUMENTS:
+#    stream: The stream to strip; It's expected to have advanced one past the first number.
+#    chr: It's expected that the first character of the number is in `chr`.
+#
+# PRIVATE FIELDS:
+#    _next_number_ret: Internal accumulator for the return value.
+#
+# UPDATES:
+#    stream: The stream will have the leading number removed.
+#
+# CLOBBERS:
+#    chr.
+#
+# RETURNS:
+#    A string corresponding to the number that's parsed out.
+; = next_number BLOCK
+	; = _next_number_ret (+ 'n' chr)
+	; CALL peek
+	; WHILE (CALL isdigit)
+		; = _next_number_ret (+ _next_number_ret chr)
+		; CALL advance
+		: CALL peek
+	: _next_number_ret
+
+## Parses the next identifier.
+#
+# ARGUMENTS:
+#    stream: The stream to strip; It's expected to have advanced one past the first letter/`_`.
+#    chr: It's expected that the first character of the identifier is in `chr`.
+#
+# PRIVATE FIELDS:
+#    _next_identifier_ret: Internal accumulator for the return value.
+#
+# UPDATES:
+#    stream: The stream will have the leading identifier removed.
+#
+# CLOBBERS:
+#    chr.
+#
+# RETURNS:
+#    A string corresponding to the identifier that's parsed out.
+; = next_identifier BLOCK
+	; = _next_identifier_ret (+ 'i' chr)
+	; CALL peek
+	; WHILE | (CALL islower) (CALL isdigit)
+		; = _next_identifier_ret (+ _next_identifier_ret chr)
+		; CALL advance
+		: CALL peek
+	: _next_identifier_ret
+
+## Parses the next string.
+#
+# ARGUMENTS:
+#    stream: The stream to strip; It's expected to have advanced one past the first quote.
+#    chr: It's expected that the starting quote is in `chr`.
+#
+# PRIVATE FIELDS:
+#    _next_string_quote: Used to keep track of what quote started the string.
+#    _next_string_ret: Internal accumulator for the return value.
+#
+# UPDATES:
+#    stream: The stream will have the leading string removed.
+#
+# CLOBBERS:
+#    chr.
+#
+# RETURNS:
+#    A string corresponding to the string that's parsed out.
+; = next_string BLOCK
+	; = _next_string_quote chr
+	; = _next_string_ret 's'
+	; CALL peek
+	; WHILE ! | (CALL iseof) (? chr _next_string_quote)
+		; = _next_string_ret (+ _next_string_ret chr)
+		; CALL advance
+		: CALL peek
+	# If we're at EOF, ie no trailing quote,
+	; & (CALL iseof)
+		; OUTPUT ++ "unterminated quote around: " _next_string_quote (SET _next_string_ret 0 1 "")
+		: QUIT 1
+	; CALL advance # remove trailing quote.
+	: _next_string_ret
+
+
+; = _next_function_strip_keyword BLOCK
+	; CALL peek
+	: WHILE (CALL isupper)
+		; CALL advance
+		: CALL peek
+
+; = _next_function_nullary BLOCK
+	& {| (? _next_function_ret 'T')
+	   | (? _next_function_ret 'F')
+	   | (? _next_function_ret 'N')
+	   | (? _next_function_ret 'P')
+	   : (? _next_function_ret 'R')}
+	  {   + _next_function_ret '$' }
+
+; = _next_function_unary BLOCK
+	& {| (? _next_function_ret 'B')
+	   | (? _next_function_ret 'E')
+	   | (? _next_function_ret 'C')
+	   | (? _next_function_ret '`')
+	   | (? _next_function_ret 'Q')
+	   | (? _next_function_ret '!')
+	   | (? _next_function_ret 'L')
+	   : (? _next_function_ret 'O')}
+	  { ++ _next_function_ret (CALL next_ast) '$' }
+
+; = _next_function_binary BLOCK
+	& {| (? _next_function_ret '+')
+	   | (? _next_function_ret '-')
+	   | (? _next_function_ret '*')
+	   | (? _next_function_ret '/')
+	   | (? _next_function_ret '%')
+	   | (? _next_function_ret '^')
+	   | (? _next_function_ret '?')
+	   | (? _next_function_ret '<')
+	   | (? _next_function_ret '>')
+	   | (? _next_function_ret ';')
+	   | (? _next_function_ret '=')
+	   | (? _next_function_ret 'W')
+	   | (? _next_function_ret '&')
+	   : (? _next_function_ret '|')}
+	  { ++++ _next_function_ret (CALL next_ast) '$' (CALL next_ast) '$' }
+
+; = _next_function_ternary BLOCK
+	& {| (? _next_function_ret 'I')
+	     (? _next_function_ret 'G')}
+	  {: ++++++ _next_function_ret (CALL next_ast) '$'
+	                               (CALL next_ast) '$'
+	                               (CALL next_ast) '$' }
+
+; = _next_function_quatenary BLOCK
+	& {| (? _next_function_ret 'S') }
+	  {: ++++++++ _next_function_ret (CALL next_ast) '$'
+	                                 (CALL next_ast) '$'
+	                                 (CALL next_ast) '$'
+	                                 (CALL next_ast) '$' }
+
+; = next_function BLOCK
+	; = _next_function_ret chr
+	; & (CALL isupper) # if it's a keyword, strip trailing keywords
+	    (CALL _next_function_strip_keyword)
+	: |{ CALL _next_function_nullary 
+	   | CALL _next_function_unary
+	   | CALL _next_function_binary
+	   | CALL _next_function_ternary
+	   | CALL _next_function_quatenary}
+	  ; OUTPUT ++ "unknown function '" _next_function_ret "'."
+	  : QUIT 1
+
+; = _next_function_idx 0
+; = _next_ast_recur 0
+; = next_ast BLOCK
+	; = (+ 'next_ast_name_' _next_ast_recur) (+ "__ast_fn_" _next_function_idx)
+	; = _next_function_idx + _next_function_idx 1
+	; = _next_ast_recur + _next_ast_recur 1
+	; CALL strip_whitespace_and_comments
+	; CALL peek
+	; CALL advance
+	; = next_ast_tmp
+		: IF CALL isdigit
+			: CALL next_number
+		: IF CALL islower
+			: CALL next_identifier
+		: IF | (? chr '"') (? chr "'")
+			: CALL next_string
+			: CALL next_function
+	; = _next_ast_recur - _next_ast_recur 1
+	; = next_ast_name (EVAL + "next_ast_name_" _next_ast_recur)
+	; = (+ "" next_ast_name) next_ast_tmp
+	: next_ast_name
+
+; = next_arg BLOCK
+	; = next_arg_ret ""
+	; WHILE ! ? '$' (GET value_data 0 1)
+		; = next_arg_ret + next_arg_ret GET value_data 0 1
+		: = value_data SET value_data 0 1 ""
+	; = value_data SET value_data 0 1 ""
+	: next_arg_ret
