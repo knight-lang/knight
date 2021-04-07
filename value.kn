@@ -1,0 +1,114 @@
+########################################
+# Conversions from Knight to knight.kn #
+########################################
+
+## Converts from a Knight value to a knight.kn number.
+#
+# ARGUMENTS:
+#    data: The Knight value to convert.
+#
+# RETURNS:
+#    A representation of a number compatible with other knight.kn functions.
+; = new_number BLOCK
+	: + 'n' + 0 data
+
+## Converts from a Knight value to a knight.kn string.
+#
+# ARGUMENTS:
+#    data: The Knight value to convert.
+#
+# RETURNS:
+#    A representation of a string compatible with other knight.kn functions.
+; = new_string BLOCK
+	: + 's' data
+
+## Converts from a Knight value to a knight.kn boolean.
+#
+# ARGUMENTS:
+#    data: The Knight value to convert.
+#
+# RETURNS:
+#    A representation of a boolean compatible with other knight.kn functions.
+; = new_boolean BLOCK
+	: IF data 'T$' 'F$'
+
+## Creates a new null knight.kn value.
+#
+# RETURNS:
+#    A representation of null compatible with other knight.kn functions.
+; = new_null BLOCK
+	: 'N$'
+
+## Converts from a string to a knight.kn identifier.
+#
+# ARGUMENTS:
+#    data: The name of the identifier.
+#
+# RETURNS:
+#    A representation of a variable compatible with other knight.kn functions.
+; = new_variable BLOCK
+	: + 'v' data
+
+; = new_function BLOCK NULL
+
+########################################
+# Conversions from knight.kn to Knight #
+########################################
+
+## Categorizes a value into its kind and data.
+#
+# ARGUMENTS:
+#    value: The knight.kn value to categorize.
+#
+# UPDATES:
+#    value_kind: Set to the kind of value `value` is.
+#    value_data: Set to the data corresponding to `value`, if any.
+; = categorize_value BLOCK
+	; = value_kind GET value 0 1
+	: = value_data SET value 0 1 ""
+
+## Converts from a knight.kn value to a Knight number.
+#
+# ARGUMENTS:
+#    value: The knight.kn value to convert.
+#
+# RETURNS:
+#    The Knight number corresponding to `value`.
+; = to_number BLOCK
+	; CALL categorize_value
+	: IF (? 's' value_kind) + 0 value_data
+	: IF (? 'n' value_kind) + 0 value_data
+	: IF (? 'T' value_kind) 1
+	: IF (? 'F' value_kind) 0
+	: IF (? 'N' value_kind) 0
+	; OUTPUT ++ "cannot convert '" value "' to a number"
+	: QUIT 2
+
+## Converts from a knight.kn value to a Knight string.
+#
+# ARGUMENTS:
+#    value: The knight.kn value to convert.
+#
+# RETURNS:
+#    The Knight string corresponding to `value`.
+; = to_string BLOCK
+	; CALL categorize_value
+	: IF (? 's' value_kind) value_data
+	: IF (? 'n' value_kind) value_data
+	: IF (? 'T' value_kind) 'true'
+	: IF (? 'F' value_kind) 'false'
+	: IF (? 'N' value_kind) 'null'
+	; OUTPUT ++ "cannot convert '" value "' to a string"
+	: QUIT 2
+
+## Converts from a knight.kn value to a Knight boolean.
+#
+# ARGUMENTS:
+#    value: The knight.kn value to convert.
+#
+# RETURNS:
+#    The Knight boolean corresponding to `value`.
+; = to_boolean BLOCK
+	! (| (? 's' value) | (? 'n0' value) | (? 'F$' value) (? 'N$' value))
+
+: NULL 

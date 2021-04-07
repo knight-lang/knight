@@ -39,7 +39,7 @@
 #
 # RETURNS:
 #    TRUE when the character is a single ASCII digit, FALSE otherwise.
-; = isdigit BLOCK 
+; = isdigit BLOCK
 	# while we technically could convert to an int and back again, this is more efficient.
 	: & (< '/' chr) (> ':' chr)
 
@@ -73,17 +73,17 @@
 # RETURNS:
 #    TRUE if the character is between `a` and `z`, or is equal to `_`, FALSE otherwise.
 ; = islower BLOCK
-	:  | (& (< '`' chr) (> '{' chr)) (? '_' chr)
+	: | (? chr '_') (& (< '`' chr) (> '{' chr))
 
-## Checks to see if the given character is an uppercase character.
+## Checks to see if the given character is an uppercase character or an underscore.
 #
 # ARGUMENTS:
 #    chr: The character to check
 #
 # RETURNS:
-#    TRUE if the character is between `A` and `Z`, FALSE otherwise.
+#    TRUE if the character is between `A` and `Z`, or is equal to `_`, FALSE otherwise.
 ; = isupper BLOCK
-	:  & (< '@' chr) (> '[' chr)
+	: | (? chr '_') (& (< '@' chr) (> '[' chr))
 
 ## Checks to see if the given character is an end of line character.
 #
@@ -91,16 +91,17 @@
 #    chr: The character to check
 #
 # PRIVATE FIELDS:
-#    _iseol_eol: The end of line character.
+#    __iseol_eol: The end of line character.
 #
 # RETURNS:
 #    True if the character is a literal newline.
 ; = iseol BLOCK
-	: ? chr  _iseol_eol
-; = _iseol_eol '
-' # there is no escaping newlines...
-; & (? 2 LENGTH _iseol_eol) # remove `\r` in `\r\n` if present.
-    : = _iseol_eol GET _iseol_eol 1 1
+	: ? chr __iseol_eol
+
+; = __iseol_eol '
+' # there is no escaping literal newlines.
+; & (? 2 LENGTH(__iseol_eol)) # remove `\r` in `\r\n` if present.
+    : = __iseol_eol GET(__iseol_eol 1 1)
 
 ## Strips all leading whitespace and comments from the stream.
 #
@@ -201,29 +202,31 @@
 	; WHILE ! | (CALL iseof) (? chr _next_string_quote)
 		; = _next_string_ret (+ _next_string_ret chr)
 		; CALL advance
-		: CALL peek
-	# If we're at EOF, ie no trailing quote,
+		; CALL peek
+	# If we're at EOF, ie no trailing quote, abort.
 	; & (CALL iseof)
 		; OUTPUT ++ "unterminated quote around: " _next_string_quote (SET _next_string_ret 0 1 "")
 		: QUIT 1
 	; CALL advance # remove trailing quote.
 	: _next_string_ret
 
-
+## A helper function to strip the keyword from a function.
 ; = _next_function_strip_keyword BLOCK
 	; CALL peek
 	: WHILE (CALL isupper)
 		; CALL advance
 		: CALL peek
 
+## Parses the next function out 
 ; = _next_function_nullary BLOCK
 	& {| (? _next_function_ret 'T')
 	   | (? _next_function_ret 'F')
 	   | (? _next_function_ret 'N')
 	   | (? _next_function_ret 'P')
-	   : (? _next_function_ret 'R')}
-	  {   + _next_function_ret '$' }
+	     (? _next_function_ret 'R')}
+	  { + _next_function_ret '$' }
 
+## Parses the next unary function name from 
 ; = _next_function_unary BLOCK
 	& {| (? _next_function_ret 'B')
 	   | (? _next_function_ret 'E')
@@ -232,7 +235,7 @@
 	   | (? _next_function_ret 'Q')
 	   | (? _next_function_ret '!')
 	   | (? _next_function_ret 'L')
-	   : (? _next_function_ret 'O')}
+	     (? _next_function_ret 'O')}
 	  { ++ _next_function_ret (CALL next_ast) '$' }
 
 ; = _next_function_binary BLOCK
